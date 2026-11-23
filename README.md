@@ -1,5 +1,7 @@
 # food'n'steps
 
+[![CI](https://github.com/joshuah04/foodnsteps/actions/workflows/ci.yml/badge.svg)](https://github.com/joshuah04/foodnsteps/actions/workflows/ci.yml)
+
 A web game where you are served a meal, eat it one action at a time, and then see how your eating steps compare with other players.
 
 ## Current milestone: ramen with a shared backend
@@ -35,6 +37,25 @@ npm run dev
 
 Visit http://localhost:5173. The dev server forwards `/api` calls to the API on port 8000.
 
+## Tests
+
+Backend (pytest, uses a temporary SQLite file unless `DATABASE_URL` is set):
+
+```
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+Frontend (Vitest):
+
+```
+cd frontend
+npm test
+```
+
+GitHub Actions runs both on every push and pull request (`.github/workflows/ci.yml`). The backend job runs against a real PostgreSQL database.
+
 ## API
 
 * `GET /api/health` health check
@@ -62,11 +83,13 @@ Other commands:
 * `backend/app/models.py` database tables (plays and steps)
 * `backend/app/compare.py` comparison math, including Levenshtein similarity
 * `backend/app/db.py` database connection
+* `backend/tests/` API and comparison tests
+* `frontend/tests/` game rule and eating style tests
 * `PLAN.md` the full plan and the list of future meals
 
 ## Next milestone
 
-Automated tests and continuous integration.
+Deploying to a live URL.
 
 ## License
 
