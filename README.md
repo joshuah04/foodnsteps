@@ -56,6 +56,28 @@ npm test
 
 GitHub Actions runs both on every push and pull request (`.github/workflows/ci.yml`). The backend job runs against a real PostgreSQL database.
 
+## Deploy
+
+The `Dockerfile` builds the frontend and runs one FastAPI server that serves both the API and the game, so the whole app lives at one URL.
+
+To put it online with Render:
+
+1. Sign in at render.com with GitHub and choose New, then Blueprint.
+2. Pick this repository. Render reads `render.yaml` and creates the web service and a PostgreSQL database, and connects them through `DATABASE_URL`.
+3. Wait for the first deploy, then open the `onrender.com` link it shows.
+4. Seed sample plays once so comparisons are not empty. In the web service, open Shell and run `python -m app.seed --count 300`.
+
+Every push to `main` redeploys automatically. Render's free database expires after 30 days, so for a long lived demo either upgrade it or point `DATABASE_URL` at a free Neon or Supabase database.
+
+To try the production setup locally without Docker:
+
+```
+cd frontend && npm run build && cd ../backend
+STATIC_DIR=../frontend/dist uvicorn app.main:app
+```
+
+Then visit http://localhost:8000
+
 ## API
 
 * `GET /api/health` health check
@@ -83,13 +105,14 @@ Other commands:
 * `backend/app/models.py` database tables (plays and steps)
 * `backend/app/compare.py` comparison math, including Levenshtein similarity
 * `backend/app/db.py` database connection
+* `backend/app/seed.py` simulated plays for a fresh database
 * `backend/tests/` API and comparison tests
 * `frontend/tests/` game rule and eating style tests
 * `PLAN.md` the full plan and the list of future meals
 
 ## Next milestone
 
-Deploying to a live URL.
+Final ingredient art and animations, then more meals (see `PLAN.md`).
 
 ## License
 
