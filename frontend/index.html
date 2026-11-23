@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>food'n'steps</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>food'n'steps</h1>
+    <p id="meal-desc" class="muted"></p>
+  </header>
+
+  <main id="game-view" class="layout">
+    <section class="stage-wrap">
+      <div id="stage" class="stage">
+        <svg id="scene" viewBox="0 0 800 600" role="img" aria-label="Bowl of ramen"></svg>
+        <div id="menu" class="menu" hidden></div>
+      </div>
+      <p class="hint muted">Click an ingredient, the bowl, or a seasoning to choose what to do.</p>
+    </section>
+
+    <aside class="panel">
+      <h2 id="meal-name"></h2>
+      <div id="bowl-status" class="status"></div>
+      <h3>What's left</h3>
+      <ul id="amounts" class="amounts"></ul>
+      <h3>Your steps <span id="step-count" class="muted"></span></h3>
+      <ol id="steps" class="steps"></ol>
+      <div class="buttons">
+        <button id="finish-btn" class="primary" disabled>Finish meal</button>
+        <button id="restart-btn">Start over</button>
+      </div>
+    </aside>
+  </main>
+
+  <main id="results-view" class="results" hidden></main>
+
+  <script src="meals/ramen.js"></script>
+  <script src="storage.js"></script>
+  <script src="results.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
