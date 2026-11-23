@@ -2,7 +2,7 @@
 
 A web game where you are served a meal, eat it one action at a time, and then see how your eating steps compare with other players.
 
-## Current milestone: ramen prototype
+## Current milestone: ramen prototype in TypeScript
 
 Everything runs in the browser for now. There is no server yet.
 
@@ -13,24 +13,37 @@ Everything runs in the browser for now. There is no server yet.
 
 ## Run it
 
-Open `frontend/index.html` in a browser. Or serve the folder:
+Needs Node.js 20 or newer.
 
 ```
 cd frontend
-python3 -m http.server 8000
+npm install
+npm run dev
 ```
 
-Then visit http://localhost:8000
+Then visit http://localhost:5173
+
+Other commands:
+
+* `npm run typecheck` checks types without building
+* `npm run build` type checks and builds static files into `frontend/dist`
 
 ## Files
 
-* `frontend/meals/ramen.js` ingredient amounts, positions, colors and actions (tune the game here)
-* `frontend/game.js` drawing, action menu, animations, step log
-* `frontend/results.js` eating style rules and stats
-* `frontend/storage.js` saving plays in the browser
-* `frontend/style.css` layout and colors
+* `frontend/src/types.ts` shapes of meals, steps and sessions
+* `frontend/src/meals/ramen.ts` ingredient amounts, positions, colors and actions (tune the game here)
+* `frontend/src/rules.ts` game rules with no DOM access (what an action is allowed to do and what it removes)
+* `frontend/src/analysis.ts` eating style rules and stats with no DOM access
+* `frontend/src/game.ts` drawing, action menu, animations, step log
+* `frontend/src/results.ts` results screen
+* `frontend/src/storage.ts` saving plays in the browser
+* `frontend/src/style.css` layout and colors
 * `PLAN.md` the full plan and the list of future meals
 
 ## Next milestone
 
 A Python (FastAPI) server that stores every play so results compare against all players.
+
+## License
+
+MIT, see `LICENSE`.

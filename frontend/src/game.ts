@@ -1,123 +1,69 @@
 // Game screen: draws the bowl, handles the action menu, animations and step log
-window.Game = (function () {
-  'use strict';
+import { actionStatus, buildSession, commit, foodLeft, ingById as findIngredient, newState, planAction } from './rules';
+import { analyze } from './analysis';
+import * as Store from './storage';
+import * as Results from './results';
+import type { Action, GameState, Ingredient, Meal, Plan, Point } from './types';
 
-  const SVG_NS = 'http://www.w3.org/2000/svg';
-  const meal = window.MEALS.ramen;
-  const CENTER = { x: 360, y: 300 };
-  const BROTH_MAX_R = 200;
-  const BROTH_MIN_R = 70;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const CENTER: Point = { x: 360, y: 300 };
+const BROTH_MAX_R = 200;
+const BROTH_MIN_R = 70;
 
-  const scene = document.getElementById('scene');
-  const stage = document.getElementById('stage');
-  const menu = document.getElementById('menu');
-  const finishBtn = document.getElementById('finish-btn');
-  const restartBtn = document.getElementById('restart-btn');
+type Attrs = Record<string, string | number>;
 
-  let state = null;
+function byId<T extends HTMLElement>(id: string): T {
+  const node = document.getElementById(id);
+  if (!node) throw new Error('Missing element #' + id);
+  return node as T;
+}
+
+// builds an SVG element, sets its attributes and attaches it to a parent
+function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Attrs = {}, parent?: Element): SVGElementTagNameMap[K] {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+  if (parent) parent.appendChild(node);
+  return node;
+}
+
+// small seeded random so spice specks stay in the same place between renders
+function seeded(seed: number): () => number {
+  let s = seed;
+  return function () {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+}
+
+export interface Game {
+  restart: () => void;
+}
+
+export function createGame(meal: Meal): Game {
+  const scene = byId<HTMLElement>('scene') as unknown as SVGSVGElement;
+  const stage = byId<HTMLDivElement>('stage');
+  const menu = byId<HTMLDivElement>('menu');
+  const finishBtn = byId<HTMLButtonElement>('finish-btn');
+  const restartBtn = byId<HTMLButtonElement>('restart-btn');
+
+  let state: GameState = newState(meal);
   let busy = false;
-  let selectedId = null;
-  let pieceEls = {};
-  let groupEls = {};
-  let brothEl = null;
+  let selectedId: string | null = null;
+  let pieceEls: Record<string, SVGGElement[]> = {};
+  let groupEls: Record<string, SVGGElement> = {};
+  let brothEl: SVGCircleElement | null = null;
 
-  const ingById = id => meal.ingredients.find(i => i.id === id);
-  const foodIngredients = () => meal.ingredients.filter(i => i.kind === 'food');
+  const ingById = (id: string): Ingredient | undefined => findIngredient(meal, id);
 
-  function newState() {
-    const amounts = {};
-    meal.ingredients.forEach(i => { amounts[i.id] = i.start; });
-    return {
-      amounts,
-      steps: [],
-      startedAt: Date.now(),
-      stirred: false,
-      stirCount: 0,
-      onionMixed: false,
-      spice: { salt: 0, pepper: 0, chili: 0 }
-    };
-  }
-
-  // ---------- rules ----------
-
-  function actionStatus(action) {
-    const a = state.amounts;
-    for (const key of Object.keys(action.consume)) {
-      if (a[key] <= 0) return { ok: false, reason: 'No ' + ingById(key).name.toLowerCase() + ' left' };
-    }
-    const req = action.requires || {};
-    for (const [key, v] of Object.entries(req.min || {})) {
-      if (a[key] < v) return { ok: false, reason: action.requiresText || 'Not available' };
-    }
-    for (const [key, v] of Object.entries(req.max || {})) {
-      if (a[key] > v) return { ok: false, reason: action.requiresText || 'Not available' };
-    }
-    return { ok: true, reason: '' };
-  }
-
-  function planAction(action) {
-    const removed = {};
-    let note = '';
-    for (const [key, need] of Object.entries(action.consume)) {
-      const take = Math.min(need, state.amounts[key]);
-      if (take > 0) removed[key] = take;
-    }
-    // a stirred bowl means broth carries some toppings with it
-    if (state.stirred && action.target === 'broth') {
-      let best = null;
-      meal.mixedToppings.forEach(id => {
-        if (state.amounts[id] > 0 && (!best || state.amounts[id] > state.amounts[best])) best = id;
-      });
-      if (best) {
-        removed[best] = (removed[best] || 0) + 1;
-        note = 'picked up some ' + ingById(best).name.toLowerCase();
-      }
-    }
-    return { removed, note };
-  }
-
-  function commit(action, plan) {
-    for (const [key, n] of Object.entries(plan.removed)) state.amounts[key] -= n;
-    if (action.effect === 'stir') { state.stirred = true; state.stirCount += 1; }
-    if (action.effect === 'spice') state.spice[action.target] += 1;
-    if (action.effect === 'mixOnion') state.onionMixed = true;
-
-    state.steps.push({
-      n: state.steps.length + 1,
-      actionId: action.id,
-      label: action.label,
-      target: action.target,
-      category: action.category,
-      t: Date.now() - state.startedAt,
-      removed: plan.removed,
-      note: plan.note,
-      after: Object.assign({}, state.amounts)
-    });
-  }
-
-  function foodLeft() {
-    return foodIngredients().reduce((sum, i) => sum + state.amounts[i.id], 0);
+  function mustIng(id: string): Ingredient {
+    const ing = ingById(id);
+    if (!ing) throw new Error('Unknown ingredient ' + id);
+    return ing;
   }
 
   // ---------- drawing helpers ----------
 
-  function el(tag, attrs, parent) {
-    const node = document.createElementNS(SVG_NS, tag);
-    for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
-    if (parent) parent.appendChild(node);
-    return node;
-  }
-
-  // small seeded random so spice specks stay in the same place between renders
-  function seeded(seed) {
-    let s = seed;
-    return function () {
-      s = (s * 9301 + 49297) % 233280;
-      return s / 233280;
-    };
-  }
-
-  function brothColor() {
+  function brothColor(): string {
     let r = 233, g = 211, b = 168;
     const chili = Math.min(state.spice.chili * 0.14, 0.6);
     r += (214 - r) * chili; g += (95 - g) * chili; b += (55 - b) * chili;
@@ -126,13 +72,13 @@ window.Game = (function () {
     return 'rgb(' + Math.round(r) + ',' + Math.round(g) + ',' + Math.round(b) + ')';
   }
 
-  function brothRadius(amount) {
-    const start = ingById('broth').start;
+  function brothRadius(amount: number): number {
+    const start = mustIng('broth').start;
     if (amount <= 0) return 0;
     return BROTH_MIN_R + (BROTH_MAX_R - BROTH_MIN_R) * (amount / start);
   }
 
-  function drawPiece(ing, p, i, parent) {
+  function drawPiece(ing: Ingredient, p: Point, i: number, parent: Element): SVGGElement {
     const g = el('g', { class: 'piece', 'data-piece': i }, parent);
     const c = ing.color;
     switch (ing.shape) {
@@ -168,16 +114,18 @@ window.Game = (function () {
       case 'cube':
         el('rect', { x: p.x - 8, y: p.y - 8, width: 16, height: 16, rx: 3, fill: c, stroke: '#d4ad2c', 'stroke-width': 2 }, g);
         break;
+      default:
+        break;
     }
     return g;
   }
 
-  function drawShaker(ing, parent) {
+  function drawShaker(ing: Ingredient, parent: Element): SVGGElement[] {
     const p = ing.pieces[0];
     el('rect', { x: p.x - 18, y: p.y - 54, width: 36, height: 14, rx: 4, fill: '#b5aca3' }, parent);
     el('rect', { x: p.x - 26, y: p.y - 42, width: 52, height: 88, rx: 12, fill: ing.color, stroke: '#9a9087', 'stroke-width': 2 }, parent);
     const dotFill = ing.id === 'salt' ? '#b9b0a7' : '#f6f1ea';
-    const els = [];
+    const els: SVGGElement[] = [];
     for (let i = 0; i < ing.start; i++) {
       const g = el('g', { class: 'piece', 'data-piece': i }, parent);
       el('circle', { cx: p.x, cy: p.y - 22 + i * 22, r: 7, fill: dotFill }, g);
@@ -187,9 +135,9 @@ window.Game = (function () {
     return els;
   }
 
-  function addHitArea(group, pad) {
-    let box;
-    try { box = group.getBBox(); } catch (err) { return; }
+  function addHitArea(group: SVGGElement, pad: number): void {
+    let box: DOMRect;
+    try { box = group.getBBox(); } catch { return; }
     if (!box || box.width === 0) return;
     const hit = el('rect', {
       x: box.x - pad, y: box.y - pad, width: box.width + pad * 2, height: box.height + pad * 2,
@@ -198,7 +146,7 @@ window.Game = (function () {
     group.insertBefore(hit, group.firstChild);
   }
 
-  function drawBrothDetails(parent, r) {
+  function drawBrothDetails(parent: Element, r: number): void {
     if (r <= 0) return;
     const rand = seeded(7);
     for (let i = 0; i < state.spice.pepper * 8; i++) {
@@ -228,7 +176,7 @@ window.Game = (function () {
 
   // ---------- render ----------
 
-  function render() {
+  function render(): void {
     scene.innerHTML = '';
     pieceEls = {};
     groupEls = {};
@@ -249,10 +197,11 @@ window.Game = (function () {
 
     const brothGroup = el('g', { 'data-ing': 'broth' }, spin);
     const r = brothRadius(state.amounts.broth);
-    brothEl = el('circle', { cx: CENTER.x, cy: CENTER.y, r: Math.max(r, 0.01), fill: brothColor() }, brothGroup);
-    brothEl.style.transformBox = 'view-box';
-    brothEl.style.transformOrigin = CENTER.x + 'px ' + CENTER.y + 'px';
-    if (r <= 0) brothEl.setAttribute('visibility', 'hidden');
+    const broth = el('circle', { cx: CENTER.x, cy: CENTER.y, r: Math.max(r, 0.01), fill: brothColor() }, brothGroup);
+    broth.style.transformBox = 'view-box';
+    broth.style.transformOrigin = CENTER.x + 'px ' + CENTER.y + 'px';
+    if (r <= 0) broth.setAttribute('visibility', 'hidden');
+    brothEl = broth;
     drawBrothDetails(brothGroup, r);
     groupEls.broth = brothGroup;
 
@@ -294,19 +243,19 @@ window.Game = (function () {
     renderPanel();
   }
 
-  function renderPanel() {
-    document.getElementById('meal-name').textContent = meal.name;
-    document.getElementById('meal-desc').textContent = meal.description;
+  function renderPanel(): void {
+    byId('meal-name').textContent = meal.name;
+    byId('meal-desc').textContent = meal.description;
 
-    const status = document.getElementById('bowl-status');
+    const status = byId('bowl-status');
     status.innerHTML = '';
-    const badges = [];
+    const badges: string[] = [];
     if (state.stirred) badges.push('Stirred x' + state.stirCount);
     if (state.onionMixed) badges.push('Onion mixed in');
     if (state.spice.salt) badges.push('Salt ' + state.spice.salt);
     if (state.spice.pepper) badges.push('Pepper ' + state.spice.pepper);
     if (state.spice.chili) badges.push('Chili ' + state.spice.chili);
-    if (foodLeft() === 0) badges.push('Bowl empty');
+    if (foodLeft(meal, state) === 0) badges.push('Bowl empty');
     if (!badges.length) badges.push('Fresh bowl');
     badges.forEach(b => {
       const s = document.createElement('span');
@@ -315,7 +264,7 @@ window.Game = (function () {
       status.appendChild(s);
     });
 
-    const list = document.getElementById('amounts');
+    const list = byId('amounts');
     list.innerHTML = '';
     meal.ingredients.forEach(ing => {
       const amt = state.amounts[ing.id];
@@ -341,7 +290,7 @@ window.Game = (function () {
       list.appendChild(li);
     });
 
-    const steps = document.getElementById('steps');
+    const steps = byId('steps');
     steps.innerHTML = '';
     state.steps.forEach(s => {
       const li = document.createElement('li');
@@ -355,21 +304,21 @@ window.Game = (function () {
       steps.appendChild(li);
     });
     steps.scrollTop = steps.scrollHeight;
-    document.getElementById('step-count').textContent = state.steps.length ? '(' + state.steps.length + ')' : '';
+    byId('step-count').textContent = state.steps.length ? '(' + state.steps.length + ')' : '';
 
     finishBtn.disabled = state.steps.length === 0;
-    finishBtn.classList.toggle('pulse', foodLeft() === 0);
+    finishBtn.classList.toggle('pulse', foodLeft(meal, state) === 0);
   }
 
   // ---------- action menu ----------
 
-  function svgToStage(x, y) {
+  function svgToStage(x: number, y: number): Point {
     const rect = scene.getBoundingClientRect();
     const scale = rect.width / 800;
     return { x: x * scale, y: y * scale };
   }
 
-  function openMenu(ingId, ev) {
+  function openMenu(ingId: string, ev: MouseEvent | null): void {
     if (busy) return;
     const actions = meal.actions.filter(a => a.target === ingId);
     if (!actions.length) return;
@@ -385,7 +334,7 @@ window.Game = (function () {
     menu.appendChild(title);
 
     actions.forEach(action => {
-      const st = actionStatus(action);
+      const st = actionStatus(meal, state, action);
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = action.label;
@@ -402,7 +351,8 @@ window.Game = (function () {
 
     menu.hidden = false;
     const stageRect = stage.getBoundingClientRect();
-    let x, y;
+    let x: number;
+    let y: number;
     if (ev) {
       x = ev.clientX - stageRect.left + 10;
       y = ev.clientY - stageRect.top + 10;
@@ -419,11 +369,11 @@ window.Game = (function () {
     y = Math.max(8, Math.min(y, stageRect.height - h - 8));
     menu.style.left = x + 'px';
     menu.style.top = y + 'px';
-    const first = menu.querySelector('button:not(:disabled)');
+    const first = menu.querySelector<HTMLButtonElement>('button:not(:disabled)');
     if (first) first.focus({ preventScroll: true });
   }
 
-  function closeMenu() {
+  function closeMenu(): void {
     menu.hidden = true;
     selectedId = null;
     Object.values(groupEls).forEach(g => g.classList.remove('selected'));
@@ -431,9 +381,12 @@ window.Game = (function () {
 
   // ---------- animations ----------
 
-  function floatText(text, x, y) {
-    const fx = scene.querySelector('#fx');
-    const t = el('text', { x, y, 'text-anchor': 'middle', class: 'label fx-item' }, fx);
+  function fxLayer(): SVGGElement {
+    return scene.querySelector('#fx') as SVGGElement;
+  }
+
+  function floatText(text: string, x: number, y: number): void {
+    const t = el('text', { x, y, 'text-anchor': 'middle', class: 'label fx-item' }, fxLayer());
     t.textContent = text;
     t.animate(
       [{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-40px)', opacity: 0 }],
@@ -441,10 +394,10 @@ window.Game = (function () {
     );
   }
 
-  function removalPieces(plan) {
-    const out = [];
+  function removalPieces(plan: Plan): { id: string; el: SVGGElement }[] {
+    const out: { id: string; el: SVGGElement }[] = [];
     for (const [id, n] of Object.entries(plan.removed)) {
-      const els = pieceEls[id] || [];
+      const els = pieceEls[id] ?? [];
       const amt = state.amounts[id];
       for (let i = amt - 1; i >= amt - n && i >= 0; i--) {
         if (els[i]) out.push({ id, el: els[i] });
@@ -453,22 +406,22 @@ window.Game = (function () {
     return out;
   }
 
-  function pieceCenter(pieceEl) {
+  function pieceCenter(pieceEl: SVGGraphicsElement): Point {
     try {
       const b = pieceEl.getBBox();
       return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
-    } catch (err) {
+    } catch {
       return { x: CENTER.x, y: CENTER.y };
     }
   }
 
-  function animateAction(action, plan) {
+  function animateAction(action: Action, plan: Plan): Promise<void> {
     const pieces = removalPieces(plan);
     let duration = 650;
 
     pieces.forEach(({ id, el: pieceEl }) => {
       if (id === 'broth') return;
-      if (ingById(id).kind === 'side') {
+      if (mustIng(id).kind === 'side') {
         pieceEl.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, fill: 'forwards' });
         return;
       }
@@ -493,7 +446,7 @@ window.Game = (function () {
     });
 
     // broth shrinks toward its new size
-    if (plan.removed.broth) {
+    if (plan.removed.broth && brothEl) {
       const oldR = brothRadius(state.amounts.broth);
       const newR = brothRadius(state.amounts.broth - plan.removed.broth);
       const k = oldR > 0 ? Math.max(newR / oldR, 0.01) : 1;
@@ -501,7 +454,7 @@ window.Game = (function () {
         { duration: 650, easing: 'ease-in-out', fill: 'forwards' });
     }
 
-    const fx = scene.querySelector('#fx');
+    const fx = fxLayer();
 
     if (action.anim === 'sip') {
       const spoon = el('g', { class: 'fx-item' }, fx);
@@ -550,7 +503,7 @@ window.Game = (function () {
     }
 
     if (action.anim === 'mix') {
-      (pieceEls.onion || []).forEach((p, i) => {
+      (pieceEls.onion ?? []).forEach((p, i) => {
         if (i >= state.amounts.onion) return;
         const c = pieceCenter(p);
         const dx = (CENTER.x - c.x) * 0.5;
@@ -580,7 +533,7 @@ window.Game = (function () {
     }
 
     if (action.anim === 'season') {
-      const ing = ingById(action.target);
+      const ing = mustIng(action.target);
       const from = ing.pieces[0];
       const rand = seeded(state.steps.length + 3);
       const dotColor = ing.id === 'salt' ? '#ffffff' : ing.color;
@@ -605,21 +558,21 @@ window.Game = (function () {
       duration = 1000;
     }
 
-    const ing = ingById(action.target);
-    const anchor = ing ? ing.label : { x: CENTER.x, y: 560 };
+    const target = ingById(action.target);
+    const anchor = target ? target.label : { x: CENTER.x, y: 560 };
     floatText(action.label, anchor.x, anchor.y - 20);
 
     return new Promise(resolve => setTimeout(resolve, duration));
   }
 
-  function runAction(action) {
+  function runAction(action: Action): void {
     if (busy) return;
-    if (!actionStatus(action).ok) return;
+    if (!actionStatus(meal, state, action).ok) return;
     closeMenu();
-    const plan = planAction(action);
+    const plan = planAction(meal, state, action);
     busy = true;
-    animateAction(action, plan).then(() => {
-      commit(action, plan);
+    void animateAction(action, plan).then(() => {
+      commit(state, action, plan);
       busy = false;
       render();
     });
@@ -627,46 +580,34 @@ window.Game = (function () {
 
   // ---------- finish and restart ----------
 
-  function finish() {
+  function finish(): void {
     if (busy || state.steps.length === 0) return;
     closeMenu();
-    const finishedAt = Date.now();
-    const session = {
-      id: 's' + finishedAt.toString(36) + Math.random().toString(36).slice(2, 7),
-      mealId: meal.id,
-      startedAt: new Date(state.startedAt).toISOString(),
-      finishedAt: new Date(finishedAt).toISOString(),
-      durationMs: finishedAt - state.startedAt,
-      completed: foodLeft() === 0,
-      steps: state.steps,
-      finalAmounts: Object.assign({}, state.amounts),
-      spice: Object.assign({}, state.spice),
-      stirCount: state.stirCount
-    };
-    const analysis = window.Results.analyze(session, meal);
+    const session = buildSession(meal, state);
+    const analysis = analyze(session, meal);
     session.styleId = analysis.style.id;
-    const history = window.Store.save(session).filter(s => s.mealId === meal.id);
-    document.getElementById('game-view').hidden = true;
-    window.Results.show(session, analysis, history, meal);
+    const history = Store.save(session).filter(s => s.mealId === meal.id);
+    byId('game-view').hidden = true;
+    Results.show(session, analysis, history, meal, restart);
     window.scrollTo(0, 0);
   }
 
-  function restart() {
-    state = newState();
+  function restart(): void {
+    state = newState(meal);
     busy = false;
     closeMenu();
-    document.getElementById('results-view').hidden = true;
-    document.getElementById('game-view').hidden = false;
+    byId('results-view').hidden = true;
+    byId('game-view').hidden = false;
     render();
   }
 
   // ---------- events ----------
 
   scene.addEventListener('click', ev => {
-    const target = ev.target.closest('[data-ing]');
+    const target = (ev.target as Element).closest('[data-ing]');
     ev.stopPropagation();
     if (!target) { closeMenu(); return; }
-    openMenu(target.getAttribute('data-ing'), ev);
+    openMenu(target.getAttribute('data-ing') as string, ev);
   });
   menu.addEventListener('click', ev => ev.stopPropagation());
   document.addEventListener('click', () => { if (!menu.hidden) closeMenu(); });
@@ -678,4 +619,4 @@ window.Game = (function () {
   restart();
 
   return { restart };
-})();
+}
