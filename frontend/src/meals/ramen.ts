@@ -1,8 +1,8 @@
 // Meal definition for tonkotsu ramen
 // Every number here can be tuned without touching the game code
-window.MEALS = window.MEALS || {};
+import type { Meal } from '../types';
 
-window.MEALS.ramen = {
+export const ramen: Meal = {
   id: 'ramen',
   name: 'Tonkotsu Ramen',
   description: 'A rich pork bone broth with noodles, chashu pork, egg and toppings.',

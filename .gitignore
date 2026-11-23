@@ -1,0 +1,20 @@
+# dependencies and build output
+node_modules/
+dist/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# local databases and env files
+*.db
+*.sqlite3
+.env
+
+# editor and os files
+.DS_Store
+.vscode/
+.idea/
