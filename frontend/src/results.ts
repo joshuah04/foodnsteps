@@ -1,6 +1,6 @@
 // Results screen: eating style, opening move, most used action, comparisons
-import { mode, styleById, type Analysis } from './analysis';
-import type { Meal, Session } from './types';
+import { styleById, type Analysis } from './analysis';
+import type { ComparisonResults, Meal, Session } from './types';
 
 function actionLabel(meal: Meal, id: string | null): string {
   const act = meal.actions.find(x => x.id === id);
@@ -40,14 +40,13 @@ function card(k: string, v: string, s?: string): HTMLDivElement {
 export function show(
   session: Session,
   analysis: Analysis,
-  history: Session[],
+  stats: ComparisonResults | null,
   meal: Meal,
   onRestart: () => void
 ): void {
   const view = document.getElementById('results-view') as HTMLElement;
   view.innerHTML = '';
   view.hidden = false;
-  const plays = history.length;
 
   const styleCard = document.createElement('section');
   styleCard.className = 'style-card';
@@ -73,30 +72,31 @@ export function show(
   }
   view.appendChild(styleCard);
 
-  // your numbers next to everyone's numbers
-  const openings = history.map(s => s.steps[0]?.actionId).filter((x): x is string => Boolean(x));
+  // your numbers next to everyone's numbers, computed by the server over all plays
   const myOpen = session.steps[0].actionId;
-  const sameOpen = openings.filter(x => x === myOpen).length;
-  const topOpen = mode(openings);
-  const allActions: string[] = [];
-  history.forEach(s => s.steps.forEach(st => allActions.push(st.actionId)));
-  const topAction = mode(allActions);
-  const topStyle = mode(history.map(s => s.styleId).filter((x): x is string => Boolean(x)));
-  const sameStyle = history.filter(s => s.styleId === analysis.style.id).length;
-
   const cards = document.createElement('div');
   cards.className = 'cards';
   cards.append(
     card('You opened with', actionLabel(meal, myOpen),
-      pct(sameOpen, plays) + ' of plays opened the same way'),
+      stats ? pct(stats.sameOpening, stats.plays) + ' of plays opened the same way' : undefined),
     card('Your most used action', actionLabel(meal, analysis.mostUsed.value),
-      'Used ' + analysis.mostUsed.count + ' time' + (analysis.mostUsed.count === 1 ? '' : 's')),
-    card('Most common opening', actionLabel(meal, topOpen.value),
-      pct(topOpen.count, plays) + ' of ' + plays + ' play' + (plays === 1 ? '' : 's')),
-    card('Most used action overall', actionLabel(meal, topAction.value),
-      topAction.count + ' of ' + allActions.length + ' steps'),
-    card('Most common style', styleById(topStyle.value).name,
-      pct(sameStyle, plays) + ' of plays share your style'),
+      'Used ' + analysis.mostUsed.count + ' time' + (analysis.mostUsed.count === 1 ? '' : 's'))
+  );
+  if (stats) {
+    const plays = stats.plays;
+    const sim = stats.similarity;
+    cards.append(
+      card('Most common opening', actionLabel(meal, stats.topOpening.value),
+        pct(stats.topOpening.count, plays) + ' of ' + plays + ' play' + (plays === 1 ? '' : 's')),
+      card('Most used action overall', actionLabel(meal, stats.topAction.value),
+        stats.topAction.count + ' of ' + stats.totalSteps + ' steps'),
+      card('Most common style', styleById(stats.topStyle.value).name,
+        pct(stats.sameStyle, plays) + ' of plays share your style'),
+      card('Closest match', sim.closestPercent === null ? 'No one yet' : sim.closestPercent + '% similar',
+        sim.averagePercent === null ? 'Only your play so far' : 'Average ' + sim.averagePercent + '% across ' + sim.comparedWith + ' other plays')
+    );
+  }
+  cards.append(
     card('Your meal', session.steps.length + ' steps in ' + fmtTime(session.durationMs),
       session.completed ? 'Finished the whole bowl' : pct(Math.round(analysis.leftShare * 100), 100) + ' of the bowl left')
   );
@@ -126,8 +126,9 @@ export function show(
 
   const note = document.createElement('p');
   note.className = 'note muted';
-  note.textContent = 'For now, comparisons use the plays saved in this browser (' + plays +
-    ' so far). Comparing with other players comes with the server in the next milestone.';
+  note.textContent = stats
+    ? 'Compared with ' + stats.plays + ' play' + (stats.plays === 1 ? '' : 's') + ' of this meal from all players.'
+    : 'Could not reach the server, so this play was not saved and there is nothing to compare against.';
   view.appendChild(note);
 
   const btns = document.createElement('div');

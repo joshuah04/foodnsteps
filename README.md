@@ -2,18 +2,30 @@
 
 A web game where you are served a meal, eat it one action at a time, and then see how your eating steps compare with other players.
 
-## Current milestone: ramen prototype in TypeScript
+## Current milestone: ramen with a shared backend
 
-Everything runs in the browser for now. There is no server yet.
+The TypeScript frontend draws the bowl and runs the game. A FastAPI server stores every finished play in a database and compares each new play with all the others.
 
 * Click an ingredient, the bowl rim, or a seasoning (or a row in the "What's left" list) to open its action menu.
 * Each action plays a short placeholder animation and the amount drops.
 * Press "Finish meal" at any time to see your results.
-* Finished plays are saved in this browser's local storage, and the results screen compares against them.
+* Finished plays are sent to the server. The results screen shows how your opening, style and step sequence compare with every other play, including a similarity score based on edit distance between step sequences.
 
 ## Run it
 
-Needs Node.js 20 or newer.
+Needs Python 3.11 or newer and Node.js 20 or newer. Start the API in one terminal:
+
+```
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+It uses a local SQLite file (`backend/foodnsteps.db`) unless `DATABASE_URL` points at PostgreSQL, for example `DATABASE_URL=postgresql://user:pass@localhost:5432/foodnsteps`.
+
+Then start the frontend in a second terminal:
 
 ```
 cd frontend
@@ -21,7 +33,15 @@ npm install
 npm run dev
 ```
 
-Then visit http://localhost:5173
+Visit http://localhost:5173. The dev server forwards `/api` calls to the API on port 8000.
+
+## API
+
+* `GET /api/health` health check
+* `POST /api/sessions` save a finished play with all its steps, returns its id
+* `GET /api/sessions/{id}/results` comparison of that play with every play of the same meal
+
+Interactive docs are at http://localhost:8000/docs while the API is running.
 
 Other commands:
 
@@ -36,13 +56,17 @@ Other commands:
 * `frontend/src/analysis.ts` eating style rules and stats with no DOM access
 * `frontend/src/game.ts` drawing, action menu, animations, step log
 * `frontend/src/results.ts` results screen
-* `frontend/src/storage.ts` saving plays in the browser
+* `frontend/src/api.ts` calls to the backend
 * `frontend/src/style.css` layout and colors
+* `backend/app/main.py` API routes
+* `backend/app/models.py` database tables (plays and steps)
+* `backend/app/compare.py` comparison math, including Levenshtein similarity
+* `backend/app/db.py` database connection
 * `PLAN.md` the full plan and the list of future meals
 
 ## Next milestone
 
-A Python (FastAPI) server that stores every play so results compare against all players.
+Automated tests and continuous integration.
 
 ## License
 

@@ -109,3 +109,28 @@ export interface Session {
   stirCount: number;
   styleId?: string;
 }
+
+// what the server returns for GET /api/sessions/{id}/results
+export interface CountResult {
+  value: string | null;
+  count: number;
+}
+
+export interface SimilarityResult {
+  closestPercent: number | null;
+  averagePercent: number | null;
+  comparedWith: number;
+}
+
+export interface ComparisonResults {
+  sessionId: string;
+  mealId: string;
+  plays: number;
+  sameOpening: number;
+  topOpening: CountResult;
+  topAction: CountResult;
+  totalSteps: number;
+  topStyle: CountResult;
+  sameStyle: number;
+  similarity: SimilarityResult;
+}

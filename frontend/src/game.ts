@@ -1,7 +1,7 @@
 // Game screen: draws the bowl, handles the action menu, animations and step log
 import { actionStatus, buildSession, commit, foodLeft, ingById as findIngredient, newState, planAction } from './rules';
 import { analyze } from './analysis';
-import * as Store from './storage';
+import { getResults, saveSession } from './api';
 import * as Results from './results';
 import type { Action, GameState, Ingredient, Meal, Plan, Point } from './types';
 
@@ -586,10 +586,18 @@ export function createGame(meal: Meal): Game {
     const session = buildSession(meal, state);
     const analysis = analyze(session, meal);
     session.styleId = analysis.style.id;
-    const history = Store.save(session).filter(s => s.mealId === meal.id);
-    byId('game-view').hidden = true;
-    Results.show(session, analysis, history, meal, restart);
-    window.scrollTo(0, 0);
+    busy = true;
+    finishBtn.disabled = true;
+    // the results screen still opens if the server cannot be reached, just without comparisons
+    void saveSession(session)
+      .then(getResults)
+      .catch(() => null)
+      .then(stats => {
+        busy = false;
+        byId('game-view').hidden = true;
+        Results.show(session, analysis, stats, meal, restart);
+        window.scrollTo(0, 0);
+      });
   }
 
   function restart(): void {
