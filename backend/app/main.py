@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -114,3 +115,10 @@ def session_results(session_id: str, db: Session = Depends(get_db)) -> ResultsOu
             compared_with=c.compared_with,
         ),
     )
+
+
+# in production the built frontend is served from the same server, so one URL hosts everything
+# mounted last so the /api routes above take priority
+STATIC_DIR = os.environ.get("STATIC_DIR", "")
+if STATIC_DIR and os.path.isdir(STATIC_DIR):
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
