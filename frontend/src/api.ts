@@ -1,8 +1,9 @@
 // Talks to the FastAPI server; replaces the old browser only storage.ts
 import type { ComparisonResults, Session } from './types';
 
-// empty means same origin; set VITE_API_URL when the API lives elsewhere
-const BASE: string = import.meta.env.VITE_API_URL ?? '';
+// empty means same origin; set VITE_API_URL when the API lives elsewhere, for example on Fly.io
+// it is read at build time, so changing it needs a new build; a trailing slash is ignored
+const BASE: string = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, {

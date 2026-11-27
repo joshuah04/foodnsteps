@@ -1,0 +1,33 @@
+# Fly.io config for the FastAPI backend, built from the Dockerfile in this folder
+# app names are global on Fly, so change this if "foodnsteps-api" is taken
+app = "foodnsteps-api"
+# iad is Virginia, next to the Neon database in AWS us-east-1
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8000"
+  # the browser game lives on Vercel; its url is allowed here so the browser may call this API
+  # change it to your real Vercel url, or override it with: fly secrets set CORS_ORIGINS=...
+  CORS_ORIGINS = "https://foodnsteps.vercel.app,http://localhost:5173"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # machines sleep when nobody is playing and wake on the next request, which keeps it free or nearly free
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

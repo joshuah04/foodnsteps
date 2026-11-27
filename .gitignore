@@ -13,6 +13,11 @@ venv/
 *.db
 *.sqlite3
 .env
+.env.local
+.env.*.local
+
+# vercel cli link folder
+.vercel
 
 # editor and os files
 .DS_Store
