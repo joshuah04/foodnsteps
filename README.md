@@ -1,159 +1,178 @@
+<div align="center">
+
 # food'n'steps
 
+**Eat a bowl of ramen one action at a time, then see how your eating style compares with every other player.**
+
 [![CI](https://github.com/joshuah04/foodnsteps/actions/workflows/ci.yml/badge.svg)](https://github.com/joshuah04/foodnsteps/actions/workflows/ci.yml)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A web game where you are served a meal, eat it one action at a time, and then see how your eating steps compare with other players.
+[Play it](https://foodnsteps-api.fly.dev) · [API docs](https://foodnsteps-api.fly.dev/docs) · [Design plan](PLAN.md)
 
-## Current milestone: ramen with a shared backend
+<img src="docs/results.png" alt="Results screen showing eating style, stats and step timeline" width="760">
 
-The TypeScript frontend draws the bowl and runs the game. A FastAPI server stores every finished play in a database and compares each new play with all the others.
+</div>
 
-* Click an ingredient, the bowl rim, or a seasoning (or a row in the "What's left" list) to open its action menu.
-* Each action plays a short placeholder animation and the amount drops.
-* Press "Finish meal" at any time to see your results.
-* Finished plays are sent to the server. The results screen shows how your opening, style and step sequence compare with every other play, including a similarity score based on edit distance between step sequences.
+## Overview
 
-## Run it
+food'n'steps serves you a bowl of tonkotsu ramen drawn as an interactive graphic. Every ingredient is clickable, every action (slurp the noodles, dip the chashu, add chili oil, stir) is recorded as a step, and you decide when you are done. When you finish, the server compares your full sequence of steps with every other play of the same meal.
 
-Needs Python 3.11 or newer and Node.js 20 or newer. Start the API in one terminal:
+## Features
 
+* **Action based gameplay.** Each ingredient offers only the actions that make sense for it, with rules for how actions interact (stirring spreads toppings into the broth, the bowl can only be drunk once the noodles are low).
+* **Eating style detection.** Each play is labeled with one of eight styles, such as Noodle Rusher, Broth Taster, Saves the Best for Last or Light Eater.
+* **Crowd comparison.** See the most common opening move, the most used action overall, and how many players share your style.
+* **Sequence similarity.** Your step sequence is scored against every other play using Levenshtein edit distance, giving your closest match and average similarity.
+* **Anonymous by design.** No accounts and no personal data, just the steps.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    B[Browser] -->|static site| V[Vercel<br/>TypeScript + Vite build]
+    B -->|JSON over HTTPS| F[Fly.io<br/>FastAPI in Docker]
+    F -->|SQLAlchemy + psycopg| N[(Neon<br/>PostgreSQL)]
+    G[GitHub Actions] -->|tests, then flyctl deploy| F
+    G -.->|push to main| V
 ```
+
+| Layer | Technology | Hosted on |
+| --- | --- | --- |
+| Frontend | TypeScript, Vite, plain DOM and SVG (no framework) | Vercel |
+| API | Python 3.12, FastAPI, Pydantic, SQLAlchemy 2 | Fly.io (Docker) |
+| Database | PostgreSQL (SQLite for local development) | Neon |
+| CI/CD | GitHub Actions: pytest against Postgres, type check, Vitest, build, deploy | GitHub |
+
+The `Dockerfile` also bundles the built frontend into the API image, so the whole app can run as a single service (used by `render.yaml` and the Fly url).
+
+## Quick start
+
+Requires Python 3.11+ and Node.js 20+.
+
+```bash
+# API on http://localhost:8000
 cd backend
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+python -m app.seed --count 300   # optional sample plays
 uvicorn app.main:app --reload
 ```
 
-It uses a local SQLite file (`backend/foodnsteps.db`) unless `DATABASE_URL` points at PostgreSQL, for example `DATABASE_URL=postgresql://user:pass@localhost:5432/foodnsteps`.
-
-Then start the frontend in a second terminal:
-
-```
+```bash
+# Game on http://localhost:5173 (forwards /api to port 8000)
 cd frontend
 npm install
 npm run dev
 ```
 
-Visit http://localhost:5173. The dev server forwards `/api` calls to the API on port 8000.
+The API uses a local SQLite file unless `DATABASE_URL` points at PostgreSQL.
 
-## Tests
+## Configuration
 
-Backend (pytest, uses a temporary SQLite file unless `DATABASE_URL` is set):
+| Variable | Where | Purpose | Default |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | API | Database connection string | `sqlite:///./foodnsteps.db` |
+| `CORS_ORIGINS` | API | Comma separated sites allowed to call the API | `http://localhost:5173` |
+| `CORS_ORIGIN_REGEX` | API | Optional pattern of allowed sites, such as Vercel previews | none |
+| `COMPARE_LIMIT` | API | How many recent plays each result compares against | `1000` |
+| `STATIC_DIR` | API | Folder of built frontend files to serve | set in the Docker image |
+| `VITE_API_URL` | Frontend (build time) | Base url of the API | same origin |
 
+## Testing
+
+```bash
+cd backend && pip install -r requirements-dev.txt && pytest
+cd frontend && npm test && npm run typecheck
 ```
-cd backend
-pip install -r requirements-dev.txt
-pytest
-```
 
-Frontend (Vitest):
+CI runs the backend suite against a real PostgreSQL 16 service container, plus the frontend type check, unit tests and production build, on every push and pull request.
 
-```
-cd frontend
-npm test
-```
+## Deployment
 
-GitHub Actions runs both on every push and pull request (`.github/workflows/ci.yml`). The backend job runs against a real PostgreSQL database.
-
-## Deploy
-
-The live setup splits the app across three services, each doing one job:
-
-| Part | Service | Config in this repo |
+| Part | Service | Config |
 | --- | --- | --- |
-| Game (static TypeScript build) | Vercel | `frontend/vercel.json` |
-| API (FastAPI in Docker) | Fly.io | `fly.toml`, `Dockerfile` |
-| Database (PostgreSQL) | Neon | none, just the `DATABASE_URL` secret |
+| Game | Vercel, root directory `frontend` | `frontend/vercel.json`, env `VITE_API_URL` |
+| API | Fly.io, region `iad` | `fly.toml`, secret `DATABASE_URL`, env `CORS_ORIGINS` |
+| Database | Neon, AWS us-east-1 | connection string only |
 
-How the pieces find each other:
+* **Vercel** builds and deploys the game on every push to `main`, with a preview url for each pull request.
+* **Fly.io** is deployed by the `deploy-api` CI job after all tests pass on `main` (needs the `FLY_API_TOKEN` repository secret). Manual deploy: `fly deploy`.
+* **Seeding** a fresh database: `fly ssh console -C "python -m app.seed --count 300"`.
+* **Alternative:** `render.yaml` deploys the single service image plus a database to Render as a Blueprint.
 
-* The game calls the API at `VITE_API_URL`, which Vercel bakes into the build.
-* The API only answers browsers from the sites listed in `CORS_ORIGINS` (comma separated). `CORS_ORIGIN_REGEX` can also allow a pattern, for example every Vercel preview url.
-* The API connects to Neon through the `DATABASE_URL` secret on Fly.
+<details>
+<summary>First time setup, step by step</summary>
 
-### 1. Database on Neon
+1. **Neon:** create a project in AWS US East 1 and copy its connection string.
+2. **Fly.io:**
+   ```bash
+   fly auth login
+   fly apps create foodnsteps-api          # names are global; update fly.toml if taken
+   fly secrets set DATABASE_URL='postgresql://...'
+   fly deploy
+   fly scale count 1 --yes                 # one machine is enough for a demo
+   ```
+3. **Vercel:** import the repo, set Root Directory to `frontend`, add `VITE_API_URL=https://foodnsteps-api.fly.dev`, deploy.
+4. **CORS:** if the Vercel url differs from `fly.toml`, run `fly secrets set CORS_ORIGINS=https://your-app.vercel.app`.
 
-1. Sign up at neon.tech and create a project in AWS US East (N. Virginia).
-2. Copy the connection string from the dashboard. It looks like `postgresql://user:password@ep-something.us-east-1.aws.neon.tech/neondb?sslmode=require`.
-
-### 2. API on Fly.io
-
-Install `flyctl` (`brew install flyctl` on a Mac), then from the repo root:
-
-```
-fly auth login
-fly apps create foodnsteps-api        # pick another name if taken, then update app in fly.toml
-fly secrets set DATABASE_URL='postgresql://...from Neon...'
-fly deploy
-```
-
-Check https://foodnsteps-api.fly.dev/api/health returns `{"status":"ok"}`. Then seed sample plays once:
-
-```
-fly ssh console -C "python -m app.seed --count 300"
-```
-
-To redeploy on every push to `main` after CI passes, create a token with `fly tokens create deploy` and save it as the `FLY_API_TOKEN` repository secret on GitHub. The `deploy-api` job in `ci.yml` skips itself until that secret exists.
-
-### 3. Game on Vercel
-
-1. Sign in at vercel.com with GitHub, choose Add New, then Project, and import this repository.
-2. Set Root Directory to `frontend`. Vercel reads `frontend/vercel.json` for the build.
-3. Add the environment variable `VITE_API_URL` = `https://foodnsteps-api.fly.dev` and deploy.
-4. If the Vercel url is not `https://foodnsteps.vercel.app`, tell the API about it: `fly secrets set CORS_ORIGINS=https://your-url.vercel.app,http://localhost:5173`.
-
-Vercel redeploys the game on every push to `main` and builds a preview for each pull request. Previews get their own urls, so allow them with `fly secrets set CORS_ORIGIN_REGEX='https://foodnsteps-.*\.vercel\.app'` if you want them to save plays.
-
-### Single server alternative (Render)
-
-The `Dockerfile` also serves the built game from the API server, so everything can live at one url with no CORS setup. `render.yaml` does this on Render: choose New, then Blueprint, pick this repository, and run `python -m app.seed --count 300` in the service Shell afterwards.
-
-To try that single server setup locally without Docker:
-
-```
-cd frontend && npm run build && cd ../backend
-STATIC_DIR=../frontend/dist uvicorn app.main:app
-```
-
-Then visit http://localhost:8000
+</details>
 
 ## API
 
-* `GET /api/health` health check
-* `POST /api/sessions` save a finished play with all its steps, returns its id
-* `GET /api/sessions/{id}/results` comparison of that play with every play of the same meal
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/health` | Health check used by Fly |
+| `POST` | `/api/sessions` | Save a finished play with all of its steps; returns its id |
+| `GET` | `/api/sessions/{id}/results` | Compare that play with every play of the same meal |
 
-Interactive docs are at http://localhost:8000/docs while the API is running.
+Interactive OpenAPI docs are served at `/docs`.
 
-Other commands:
+## Project structure
 
-* `npm run typecheck` checks types without building
-* `npm run build` type checks and builds static files into `frontend/dist`
+```
+foodnsteps/
+├── frontend/
+│   ├── src/
+│   │   ├── meals/ramen.ts   # ingredient amounts, positions and actions (tune the game here)
+│   │   ├── rules.ts         # pure game rules, no DOM
+│   │   ├── analysis.ts      # eating style rules and stats, no DOM
+│   │   ├── game.ts          # drawing, action menu, animations, step log
+│   │   ├── results.ts       # results screen
+│   │   └── api.ts           # backend client
+│   ├── tests/               # Vitest
+│   └── vercel.json
+├── backend/
+│   ├── app/
+│   │   ├── main.py          # routes and CORS
+│   │   ├── models.py        # plays and steps tables
+│   │   ├── compare.py       # Levenshtein similarity and aggregate stats
+│   │   ├── db.py            # engine and sessions
+│   │   └── seed.py          # simulated players
+│   └── tests/               # pytest
+├── Dockerfile               # multi stage: build frontend, then run API
+├── fly.toml
+├── render.yaml
+└── .github/workflows/ci.yml
+```
 
-## Files
+## Roadmap
 
-* `frontend/src/types.ts` shapes of meals, steps and sessions
-* `frontend/src/meals/ramen.ts` ingredient amounts, positions, colors and actions (tune the game here)
-* `frontend/src/rules.ts` game rules with no DOM access (what an action is allowed to do and what it removes)
-* `frontend/src/analysis.ts` eating style rules and stats with no DOM access
-* `frontend/src/game.ts` drawing, action menu, animations, step log
-* `frontend/src/results.ts` results screen
-* `frontend/src/api.ts` calls to the backend (base url from `VITE_API_URL`)
-* `frontend/src/style.css` layout and colors
-* `backend/app/main.py` API routes
-* `backend/app/models.py` database tables (plays and steps)
-* `backend/app/compare.py` comparison math, including Levenshtein similarity
-* `backend/app/db.py` database connection
-* `backend/app/seed.py` simulated plays for a fresh database
-* `backend/tests/` API and comparison tests
-* `frontend/tests/` game rule and eating style tests
-* `PLAN.md` the full plan and the list of future meals
+- [x] Ramen prototype with eating styles
+- [x] Shared backend with crowd comparison and sequence similarity
+- [x] CI with PostgreSQL, Docker image, split deploy on Vercel, Fly.io and Neon
+- [ ] Error monitoring and structured logs
+- [ ] Database migrations with Alembic
+- [ ] Daily meal with per day stats, meals served from the API
+- [ ] Precomputed aggregates and load testing
+- [ ] Popular paths and player clustering
+- [ ] End to end tests with Playwright
 
-## Next milestone
-
-Final ingredient art and animations, then more meals (see `PLAN.md`).
+See [PLAN.md](PLAN.md) for the full design.
 
 ## License
 
-MIT, see `LICENSE`.
+[MIT](LICENSE)
