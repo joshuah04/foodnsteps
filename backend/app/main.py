@@ -26,9 +26,24 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="food'n'steps API", version="0.1.0", lifespan=lifespan)
 
-# the Vite dev server runs on another port, so allow it during development
-_origins = [o for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",") if o]
-app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["*"], allow_headers=["*"])
+
+def parse_origins(raw: str) -> list[str]:
+    # comma separated list; spaces and trailing slashes are dropped because browsers never send them
+    return [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+
+
+# CORS_ORIGINS lists the sites allowed to call this API from a browser, for example the Vercel url
+# the default allows the Vite dev server, which runs on another port
+_origins = parse_origins(os.environ.get("CORS_ORIGINS", "http://localhost:5173"))
+# CORS_ORIGIN_REGEX optionally allows a pattern too, such as every Vercel preview deploy of this project
+_origin_regex = os.environ.get("CORS_ORIGIN_REGEX") or None
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins,
+    allow_origin_regex=_origin_regex,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 
 
 @app.get("/api/health")
