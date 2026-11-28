@@ -22,6 +22,19 @@ body {
 
 .topbar { padding: 16px 24px 0; }
 .topbar h1 { margin: 0; font-size: 1.6rem; }
+.topbar-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.picker { display: flex; gap: 6px; }
+.picker button {
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.picker button:hover { background: var(--chip); }
+.picker button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .muted { color: var(--muted); }
 
 .layout {
@@ -46,6 +59,7 @@ body {
 #scene .piece, #scene .fx-item { transform-box: fill-box; transform-origin: center; }
 #scene .label { font-size: 15px; font-weight: 600; fill: var(--text); paint-order: stroke; stroke: #ffffff; stroke-width: 4px; stroke-linejoin: round; }
 #scene .label.empty { fill: #b0a69c; }
+#scene .layer-label { font-size: 11px; fill: var(--muted); pointer-events: none; }
 #scene .selected { filter: drop-shadow(0 0 6px rgba(255, 200, 0, 0.9)); }
 
 .hint { font-size: 0.9rem; margin: 8px 4px 0; }

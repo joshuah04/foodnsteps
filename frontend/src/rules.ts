@@ -100,3 +100,22 @@ export function buildSession(meal: Meal, state: GameState, finishedAt: number = 
     stirCount: state.stirCount
   };
 }
+
+// actions offered when the player clicks an ingredient
+// a side such as ketchup or pickles also offers every action that uses it up
+export function actionsFor(meal: Meal, ingId: string): Action[] {
+  const ing = ingById(meal, ingId);
+  return meal.actions.filter(a =>
+    a.target === ingId || (ing?.kind === 'side' && a.consume[ingId] !== undefined)
+  );
+}
+
+// perceived brightness of a #rrggbb color from 0 (black) to 255 (white)
+// used to pick readable text and outlines on top of ingredient colors
+export function brightness(hex: string): number {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return 255;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}

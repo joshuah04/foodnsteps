@@ -7,17 +7,20 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>food'n'steps</h1>
+    <div class="topbar-row">
+      <h1>food'n'steps</h1>
+      <div id="meal-picker" class="picker" role="group" aria-label="Choose a meal"></div>
+    </div>
     <p id="meal-desc" class="muted"></p>
   </header>
 
   <main id="game-view" class="layout">
     <section class="stage-wrap">
       <div id="stage" class="stage">
-        <svg id="scene" viewBox="0 0 800 600" role="img" aria-label="Bowl of ramen"></svg>
+        <svg id="scene" viewBox="0 0 800 600" role="img" aria-label="Meal"></svg>
         <div id="menu" class="menu" hidden></div>
       </div>
-      <p class="hint muted">Click an ingredient, the bowl, or a seasoning to choose what to do.</p>
+      <p id="hint" class="hint muted"></p>
     </section>
 
     <aside class="panel">

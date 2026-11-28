@@ -6,6 +6,12 @@ export interface AnalysisInput {
   eatCount: number;
   noodleCount: number;
   seasonCount: number;
+  // how many steps took something from each ingredient, keyed by ingredient id
+  touched: Record<string, number>;
+  // how many actions used each action id
+  actionCount: Record<string, number>;
+  // times the player moved from one food to a different one between eating steps
+  switches: number;
   prepCount: number;
   finishOrder: string[];
   finalAmounts: Amounts;
@@ -33,7 +39,7 @@ export interface Analysis {
 }
 
 // checked in order, the first match becomes the main eating style
-export const STYLES: Style[] = [
+export const RAMEN_STYLES: Style[] = [
   { id: 'spice', name: 'Spice Lover', desc: 'You seasoned the bowl three or more times.',
     test: a => a.seasonCount >= 3 },
   { id: 'broth_first', name: 'Broth Taster', desc: 'You tasted the broth before anything else.',
@@ -52,8 +58,38 @@ export const STYLES: Style[] = [
     test: () => true }
 ];
 
-export function styleById(id: string | null | undefined): Style {
-  return STYLES.find(s => s.id === id) ?? STYLES[STYLES.length - 1];
+export const BURGER_STYLES: Style[] = [
+  { id: 'pickle_fan', name: 'Pickle Fan', desc: 'You added pickles to your burger two or more times.',
+    test: a => (a.actionCount.add_pickles ?? 0) >= 2 },
+  { id: 'dipper', name: 'Dip Master', desc: 'Most of your fries went into the ketchup first.',
+    test: a => (a.actionCount.dip_fries ?? 0) >= 3 && (a.actionCount.dip_fries ?? 0) > (a.actionCount.eat_fries ?? 0) },
+  { id: 'thirsty', name: 'Thirsty Starter', desc: 'You reached for the drink before anything else.',
+    test: a => a.first !== null && a.first.target === 'drink' },
+  { id: 'burger_first', name: 'Burger First', desc: 'You finished the whole burger before anything else.',
+    test: a => a.finishOrder[0] === 'burger' && (a.touched.fries ?? 0) + (a.touched.drink ?? 0) > 0 },
+  { id: 'switcher', name: 'Switcher', desc: 'You kept switching between the burger, the fries and the drink.',
+    test: a => a.eatCount >= 6 && a.switches / (a.eatCount - 1) >= 0.6 },
+  { id: 'fries_last', name: 'Fries for Dessert', desc: 'The fries were the last thing you finished.',
+    test: a => a.finishOrder.length >= 3 && a.finishOrder[a.finishOrder.length - 1] === 'fries' },
+  { id: 'light', name: 'Light Eater', desc: 'You finished with half the tray or more still left.',
+    test: a => a.leftShare >= 0.5 },
+  { id: 'balanced', name: 'Balanced Eater', desc: 'You worked your way around the whole tray evenly.',
+    test: () => true }
+];
+
+// eating styles for each meal id; every list ends with a style that always matches
+export const STYLES_BY_MEAL: Record<string, Style[]> = {
+  ramen: RAMEN_STYLES,
+  burger: BURGER_STYLES
+};
+
+export function stylesFor(mealId: string): Style[] {
+  return STYLES_BY_MEAL[mealId] ?? RAMEN_STYLES;
+}
+
+export function styleById(mealId: string, id: string | null | undefined): Style {
+  const styles = stylesFor(mealId);
+  return styles.find(s => s.id === id) ?? styles[styles.length - 1];
 }
 
 export function mode<T>(values: T[]): ModeResult<T> {
@@ -79,18 +115,32 @@ export function analyze(session: Session, meal: Meal): Analysis {
     });
   });
 
+  const touched: Record<string, number> = {};
+  const actionCount: Record<string, number> = {};
+  steps.forEach(st => {
+    actionCount[st.actionId] = (actionCount[st.actionId] ?? 0) + 1;
+    Object.keys(st.removed ?? {}).forEach(id => { touched[id] = (touched[id] ?? 0) + 1; });
+  });
+
+  const eating = steps.filter(s => s.category === 'eat' || s.category === 'sip');
+  let switches = 0;
+  for (let i = 1; i < eating.length; i++) if (eating[i].target !== eating[i - 1].target) switches += 1;
+
   const a: AnalysisInput = {
     first: steps[0] ?? null,
-    eatCount: steps.filter(s => s.category === 'eat' || s.category === 'sip').length,
-    noodleCount: steps.filter(s => s.removed && s.removed.noodles).length,
+    eatCount: eating.length,
+    noodleCount: touched.noodles ?? 0,
     seasonCount: steps.filter(s => s.category === 'season').length,
+    touched,
+    actionCount,
+    switches,
     prepCount: steps.filter(s => s.category === 'prep' && s.actionId !== 'cool_noodles').length,
     finishOrder,
     finalAmounts: session.finalAmounts,
     leftShare: startTotal ? leftTotal / startTotal : 0
   };
 
-  const matches = STYLES.filter(s => s.test(a));
+  const matches = stylesFor(meal.id).filter(s => s.test(a));
   const style = matches[0];
   const tags = matches.filter(s => s.id !== 'balanced').map(s => s.name);
   const mostUsed = mode(steps.map(s => s.actionId));

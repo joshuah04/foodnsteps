@@ -50,7 +50,8 @@ describe('helpers', () => {
   });
 
   it('styleById falls back to Balanced Eater', () => {
-    expect(styleById('nope').id).toBe('balanced');
-    expect(styleById('spice').name).toBe('Spice Lover');
+    expect(styleById('ramen', 'nope').id).toBe('balanced');
+    expect(styleById('ramen', 'spice').name).toBe('Spice Lover');
+    expect(styleById('burger', 'dipper').name).toBe('Dip Master');
   });
 });
