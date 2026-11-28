@@ -1,6 +1,6 @@
-// Entry point: loads styles and starts the ramen game
+// Entry point: loads styles and starts the game with the meal named in the url, or ramen
 import './style.css';
 import { createGame } from './game';
-import { ramen } from './meals/ramen';
+import { MEALS } from './meals';
 
-createGame(ramen);
+createGame(MEALS, new URLSearchParams(window.location.search).get('meal') ?? undefined);

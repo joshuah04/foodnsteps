@@ -5,7 +5,12 @@ import type { Meal } from '../types';
 export const ramen: Meal = {
   id: 'ramen',
   name: 'Tonkotsu Ramen',
+  short: 'Ramen',
   description: 'A rich pork bone broth with noodles, chashu pork, egg and toppings.',
+  scene: 'bowl',
+  vessel: 'bowl',
+  hint: 'Click an ingredient, the bowl, or a seasoning to choose what to do.',
+  againLabel: 'Eat another bowl',
 
   // kind "food" counts toward finishing the bowl, kind "side" does not
   ingredients: [

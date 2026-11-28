@@ -1,5 +1,6 @@
 // Results screen: eating style, opening move, most used action, comparisons
 import { styleById, type Analysis } from './analysis';
+import { brightness } from './rules';
 import type { ComparisonResults, Meal, Session } from './types';
 
 function actionLabel(meal: Meal, id: string | null): string {
@@ -90,7 +91,7 @@ export function show(
         pct(stats.topOpening.count, plays) + ' of ' + plays + ' play' + (plays === 1 ? '' : 's')),
       card('Most used action overall', actionLabel(meal, stats.topAction.value),
         stats.topAction.count + ' of ' + stats.totalSteps + ' steps'),
-      card('Most common style', styleById(stats.topStyle.value).name,
+      card('Most common style', styleById(meal.id, stats.topStyle.value).name,
         pct(stats.sameStyle, plays) + ' of plays share your style'),
       card('Closest match', sim.closestPercent === null ? 'No one yet' : sim.closestPercent + '% similar',
         sim.averagePercent === null ? 'Only your play so far' : 'Average ' + sim.averagePercent + '% across ' + sim.comparedWith + ' other plays')
@@ -98,7 +99,7 @@ export function show(
   }
   cards.append(
     card('Your meal', session.steps.length + ' steps in ' + fmtTime(session.durationMs),
-      session.completed ? 'Finished the whole bowl' : pct(Math.round(analysis.leftShare * 100), 100) + ' of the bowl left')
+      session.completed ? 'Finished the whole ' + meal.vessel : pct(Math.round(analysis.leftShare * 100), 100) + ' of the ' + meal.vessel + ' left')
   );
   view.appendChild(cards);
 
@@ -115,8 +116,7 @@ export function show(
     n.className = 'n';
     n.textContent = String(st.n);
     n.style.background = ing ? ing.color : '#b03a2e';
-    if (ing && (ing.id === 'nori' || ing.id === 'pepper')) n.style.color = '#ffffff';
-    if (!ing) n.style.color = '#ffffff';
+    if (!ing || brightness(ing.color) < 100) n.style.color = '#ffffff';
     const label = document.createElement('span');
     label.textContent = st.label;
     chip.append(n, label);
@@ -135,7 +135,7 @@ export function show(
   btns.className = 'buttons';
   const again = document.createElement('button');
   again.className = 'primary';
-  again.textContent = 'Eat another bowl';
+  again.textContent = meal.againLabel;
   again.addEventListener('click', () => onRestart());
   btns.appendChild(again);
   view.appendChild(btns);

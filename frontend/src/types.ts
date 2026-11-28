@@ -8,7 +8,16 @@ export interface Point {
 
 export type IngredientKind = 'food' | 'side';
 
-export type Shape = 'broth' | 'noodle' | 'slice' | 'egg' | 'ring' | 'stick' | 'sheet' | 'cube' | 'shaker';
+export type Shape =
+  | 'broth' | 'noodle' | 'slice' | 'egg' | 'ring' | 'stick' | 'sheet' | 'cube' | 'shaker'
+  | 'burger' | 'fries' | 'drink' | 'cup' | 'pickle';
+
+// one horizontal layer of a stacked food such as a burger, listed bottom to top
+export interface Layer {
+  name: string;
+  color: string;
+  height: number;
+}
 
 export interface Ingredient {
   id: string;
@@ -18,12 +27,14 @@ export interface Ingredient {
   color: string;
   shape: Shape;
   label: Point;
+  // for single object shapes (burger, drink, cup) the first point is the object's center
   pieces: Point[];
+  layers?: Layer[];
 }
 
 export type ActionCategory = 'eat' | 'sip' | 'season' | 'prep';
 
-export type AnimKind = 'eat' | 'lift' | 'sip' | 'drink' | 'dip' | 'mix' | 'season' | 'stir';
+export type AnimKind = 'eat' | 'lift' | 'sip' | 'drink' | 'dip' | 'mix' | 'season' | 'stir' | 'bite' | 'topping' | 'gulp';
 
 export type Effect = 'stir' | 'spice' | 'mixOnion';
 
@@ -38,7 +49,7 @@ export interface Requirements {
 export interface Action {
   id: string;
   label: string;
-  // an ingredient id, or "bowl" for the whole bowl
+  // an ingredient id, or "bowl" for the whole ramen bowl
   target: string;
   category: ActionCategory;
   consume: Amounts;
@@ -48,10 +59,20 @@ export interface Action {
   requiresText?: string;
 }
 
+// bowl draws a ramen bowl seen from above, tray draws separate items side by side
+export type SceneKind = 'bowl' | 'tray';
+
 export interface Meal {
   id: string;
   name: string;
+  // short name for the meal picker
+  short: string;
   description: string;
+  scene: SceneKind;
+  // what the player eats from, used in text such as "Fresh bowl" or "of the tray left"
+  vessel: string;
+  hint: string;
+  againLabel: string;
   ingredients: Ingredient[];
   actions: Action[];
   mixedToppings: string[];

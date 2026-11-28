@@ -2,7 +2,7 @@
 
 # food'n'steps
 
-**Eat a bowl of ramen one action at a time, then see how your eating style compares with every other player.**
+**Pick a meal (tonkotsu ramen or a burger with fries and a drink), eat it one action at a time, then see how your eating style compares with every other player.**
 
 [![CI](https://github.com/joshuah04/foodnsteps/actions/workflows/ci.yml/badge.svg)](https://github.com/joshuah04/foodnsteps/actions/workflows/ci.yml)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
@@ -58,7 +58,8 @@ Requires Python 3.11+ and Node.js 20+.
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m app.seed --count 300   # optional sample plays
+python -m app.seed --count 300   # optional sample ramen plays
+python -m app.seed --count 300 --meal burger   # and burger plays
 uvicorn app.main:app --reload
 ```
 
@@ -137,7 +138,7 @@ Interactive OpenAPI docs are served at `/docs`.
 foodnsteps/
 ├── frontend/
 │   ├── src/
-│   │   ├── meals/ramen.ts   # ingredient amounts, positions and actions (tune the game here)
+│   │   ├── meals/           # one file per meal: amounts, positions and actions (tune the game here)
 │   │   ├── rules.ts         # pure game rules, no DOM
 │   │   ├── analysis.ts      # eating style rules and stats, no DOM
 │   │   ├── game.ts          # drawing, action menu, animations, step log
@@ -162,6 +163,7 @@ foodnsteps/
 ## Roadmap
 
 - [x] Ramen prototype with eating styles
+- [x] Meal picker with a burger, fries and drink meal, stats compared per meal
 - [x] Shared backend with crowd comparison and sequence similarity
 - [x] CI with PostgreSQL, Docker image, split deploy on Vercel, Fly.io and Neon
 - [ ] Error monitoring and structured logs
