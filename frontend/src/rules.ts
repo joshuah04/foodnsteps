@@ -31,6 +31,9 @@ export function actionStatus(meal: Meal, state: GameState, action: Action): Acti
       return { ok: false, reason: 'No ' + name.toLowerCase() + ' left' };
     }
   }
+  if (action.limit !== undefined && state.steps.filter(s => s.actionId === action.id).length >= action.limit) {
+    return { ok: false, reason: action.limitText ?? 'Not available' };
+  }
   const req = action.requires ?? {};
   for (const [key, v] of Object.entries(req.min ?? {})) {
     if (a[key] < v) return { ok: false, reason: action.requiresText ?? 'Not available' };
@@ -60,11 +63,19 @@ export function planAction(meal: Meal, state: GameState, action: Action): Plan {
       note = 'picked up some ' + (ingById(meal, picked)?.name ?? picked).toLowerCase();
     }
   }
+  if (action.effect === 'refill') {
+    const ing = ingById(meal, action.target);
+    if (ing) {
+      const add = ing.start - state.amounts[ing.id];
+      if (add > 0) return { removed, added: { [ing.id]: add }, note: add + ' more served' };
+    }
+  }
   return { removed, note };
 }
 
 export function commit(state: GameState, action: Action, plan: Plan, now: number = Date.now()): void {
   for (const [key, n] of Object.entries(plan.removed)) state.amounts[key] -= n;
+  for (const [key, n] of Object.entries(plan.added ?? {})) state.amounts[key] += n;
   if (action.effect === 'stir') { state.stirred = true; state.stirCount += 1; }
   if (action.effect === 'spice') state.spice[action.target as keyof SpiceLevels] += 1;
   if (action.effect === 'mixOnion') state.onionMixed = true;

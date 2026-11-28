@@ -2,7 +2,7 @@
 
 # food'n'steps
 
-**Pick a meal (tonkotsu ramen or a burger with fries and a drink), eat it one action at a time, then see how your eating style compares with every other player.**
+**Pick a meal (tonkotsu ramen, a burger with fries and a drink, or a sushi platter), eat it one action at a time, then see how your eating style compares with every other player.**
 
 [![CI](https://github.com/joshuah04/foodnsteps/actions/workflows/ci.yml/badge.svg)](https://github.com/joshuah04/foodnsteps/actions/workflows/ci.yml)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
@@ -60,6 +60,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python -m app.seed --count 300   # optional sample ramen plays
 python -m app.seed --count 300 --meal burger   # and burger plays
+python -m app.seed --count 300 --meal sushi    # and sushi plays
 uvicorn app.main:app --reload
 ```
 
@@ -164,6 +165,7 @@ foodnsteps/
 
 - [x] Ramen prototype with eating styles
 - [x] Meal picker with a burger, fries and drink meal, stats compared per meal
+- [x] Sushi platter where each kind can be ordered again once it runs out
 - [x] Shared backend with crowd comparison and sequence similarity
 - [x] CI with PostgreSQL, Docker image, split deploy on Vercel, Fly.io and Neon
 - [ ] Error monitoring and structured logs

@@ -1,5 +1,6 @@
 // Eating style rules and stats with no DOM access, so they can be unit tested
 import type { Meal, Session, Step, Amounts } from './types';
+import { SUSHI } from './meals/sushi';
 
 export interface AnalysisInput {
   first: Step | null;
@@ -77,10 +78,49 @@ export const BURGER_STYLES: Style[] = [
     test: () => true }
 ];
 
+const SUSHI_IDS = SUSHI.map(k => k.id);
+
+function countPrefix(a: AnalysisInput, prefix: string): number {
+  return Object.entries(a.actionCount).reduce((sum, [id, n]) => sum + (id.startsWith(prefix) ? n : 0), 0);
+}
+
+// the sushi type eaten most, with how many pieces of it and of all sushi were eaten
+function favoriteSushi(a: AnalysisInput): { id: string | null; n: number; total: number } {
+  let id: string | null = null;
+  let n = 0;
+  let total = 0;
+  SUSHI_IDS.forEach(k => {
+    const c = a.touched[k] ?? 0;
+    total += c;
+    if (c > n) { id = k; n = c; }
+  });
+  return { id, n, total };
+}
+
+export const SUSHI_STYLES: Style[] = [
+  { id: 'regular', name: 'Regular', desc: 'You asked the kitchen for more sushi two or more times.',
+    test: a => countPrefix(a, 'more_') >= 2 },
+  { id: 'wasabi', name: 'Wasabi Warrior', desc: 'You mixed wasabi into your soy sauce two or more times.',
+    test: a => (a.actionCount.mix_wasabi ?? 0) >= 2 },
+  { id: 'soup_first', name: 'Soup Starter', desc: 'You started with a sip of miso soup.',
+    test: a => a.first !== null && a.first.target === 'miso' },
+  { id: 'soy_dipper', name: 'Soy Dipper', desc: 'Most of your sushi went into the soy sauce first.',
+    test: a => countPrefix(a, 'dip_') >= 4 && countPrefix(a, 'dip_') > countPrefix(a, 'eat_') - (a.actionCount.eat_radish ?? 0) },
+  { id: 'tour', name: 'Sushi Tour', desc: 'You tried every kind of sushi on the platter.',
+    test: a => SUSHI_IDS.every(k => (a.touched[k] ?? 0) > 0) },
+  { id: 'favorite', name: 'One True Favorite', desc: 'Half or more of your sushi was the same kind.',
+    test: a => { const f = favoriteSushi(a); return f.total >= 5 && f.n / f.total >= 0.5; } },
+  { id: 'light', name: 'Light Eater', desc: 'You finished with half the platter or more still left.',
+    test: a => a.leftShare >= 0.5 },
+  { id: 'balanced', name: 'Balanced Eater', desc: 'You worked your way around the whole platter evenly.',
+    test: () => true }
+];
+
 // eating styles for each meal id; every list ends with a style that always matches
 export const STYLES_BY_MEAL: Record<string, Style[]> = {
   ramen: RAMEN_STYLES,
-  burger: BURGER_STYLES
+  burger: BURGER_STYLES,
+  sushi: SUSHI_STYLES
 };
 
 export function stylesFor(mealId: string): Style[] {

@@ -120,6 +120,36 @@ export function createGame(meals: Meal[], startId?: string): Game {
       case 'cube':
         el('rect', { x: p.x - 8, y: p.y - 8, width: 16, height: 16, rx: 3, fill: c, stroke: '#d4ad2c', 'stroke-width': 2 }, g);
         break;
+      case 'nigiri': {
+        // rice underneath, fish on top with a few stripes
+        el('rect', { x: p.x - 22, y: p.y - 44, width: 44, height: 88, rx: 20, fill: '#fbf8f1', stroke: '#d9d2c4', 'stroke-width': 2 }, g);
+        el('rect', { x: p.x - 20, y: p.y - 50, width: 40, height: 92, rx: 18, fill: c, stroke: 'rgba(0,0,0,0.18)', 'stroke-width': 1.5 }, g);
+        for (let k = 0; k < 4; k++) {
+          const y = p.y - 34 + k * 20;
+          el('path', { d: 'M ' + (p.x - 14) + ' ' + (y + 6) + ' q 14 -10 28 -4', fill: 'none', stroke: ing.accent ?? '#ffffff', 'stroke-width': 3, 'stroke-linecap': 'round', opacity: 0.8 }, g);
+        }
+        if (ing.banded) el('rect', { x: p.x - 23, y: p.y - 6, width: 46, height: 18, fill: '#1f2a22' }, g);
+        break;
+      }
+      case 'maki':
+        el('circle', { cx: p.x, cy: p.y, r: 23, fill: '#1f2a22' }, g);
+        el('circle', { cx: p.x, cy: p.y, r: 19, fill: ing.accent ?? '#ffffff' }, g);
+        el('rect', { x: p.x - 8, y: p.y - 8, width: 16, height: 16, rx: 4, fill: c }, g);
+        break;
+      case 'roll': {
+        el('rect', { x: p.x - 22, y: p.y - 32, width: 44, height: 64, rx: 10, fill: ing.accent ?? '#ffffff', stroke: '#d9d2c4', 'stroke-width': 2 }, g);
+        el('rect', { x: p.x - 22, y: p.y - 32, width: 44, height: 40, rx: 10, fill: c, stroke: '#4d2610', 'stroke-width': 2 }, g);
+        [[-10, -22], [6, -18], [-4, -8], [12, -4], [-14, 0]].forEach(([dx, dy]) => {
+          el('ellipse', { cx: p.x + dx, cy: p.y + dy, rx: 2.5, ry: 1.5, fill: '#fbf0d9' }, g);
+        });
+        break;
+      }
+      case 'mound':
+        el('path', { d: 'M ' + (p.x - 14) + ' ' + (p.y + 8) + ' q 4 -22 14 -20 q 12 2 14 20 Z', fill: c, stroke: '#5f8f25', 'stroke-width': 2 }, g);
+        break;
+      case 'radish':
+        el('path', { d: 'M ' + (p.x - 16) + ' ' + p.y + ' a 16 16 0 0 1 32 0 Z', fill: c, stroke: '#c9a520', 'stroke-width': 2 }, g);
+        break;
       default:
         break;
     }
@@ -189,8 +219,8 @@ export function createGame(meals: Meal[], startId?: string): Game {
     brothEl = null;
     scene.setAttribute('aria-label', meal.name);
 
-    if (meal.scene === 'tray') renderTray();
-    else renderBowl();
+    if (meal.scene === 'bowl') renderBowl();
+    else renderTray();
 
     const labels = el('g', { id: 'labels' }, scene);
     meal.ingredients.forEach(ing => {
@@ -260,10 +290,17 @@ export function createGame(meals: Meal[], startId?: string): Game {
 
   // ---------- tray scene: burger, fries, condiment, drink ----------
 
+  // tray scene also draws the sushi board; only the background differs
   function renderTray(): void {
     el('rect', { x: 0, y: 0, width: 800, height: 600, fill: '#fdfaf5' }, scene);
-    el('rect', { x: 30, y: 60, width: 740, height: 520, rx: 28, fill: TRAY_COLOR, stroke: '#cdbba5', 'stroke-width': 4 }, scene);
-    el('rect', { x: 48, y: 78, width: 704, height: 484, rx: 20, fill: 'none', stroke: '#d8c7b2', 'stroke-width': 2, 'stroke-dasharray': '6 10' }, scene);
+    if (meal.scene === 'board') {
+      el('rect', { x: 0, y: 0, width: 800, height: 600, fill: '#3f4a4c' }, scene);
+      el('path', { d: 'M 44 78 L 586 64 L 598 560 L 36 572 Z', fill: '#6d7672', stroke: '#596260', 'stroke-width': 4 }, scene);
+      el('path', { d: 'M 60 96 L 570 84', stroke: 'rgba(255,255,255,0.08)', 'stroke-width': 10, fill: 'none' }, scene);
+    } else {
+      el('rect', { x: 30, y: 60, width: 740, height: 520, rx: 28, fill: TRAY_COLOR, stroke: '#cdbba5', 'stroke-width': 4 }, scene);
+      el('rect', { x: 48, y: 78, width: 704, height: 484, rx: 20, fill: 'none', stroke: '#d8c7b2', 'stroke-width': 2, 'stroke-dasharray': '6 10' }, scene);
+    }
 
     meal.ingredients.forEach(ing => {
       const g = el('g', { 'data-ing': ing.id }, scene);
@@ -274,6 +311,19 @@ export function createGame(meals: Meal[], startId?: string): Game {
         case 'drink': pieceEls[ing.id] = drawDrink(ing, g); break;
         case 'cup': pieceEls[ing.id] = drawCondiment(ing, g); break;
         case 'pickle': pieceEls[ing.id] = drawPickleDish(ing, g); break;
+        case 'soup': pieceEls[ing.id] = drawSoup(ing, g); break;
+        case 'mound':
+          el('ellipse', {
+            cx: ing.pieces.reduce((sum, p) => sum + p.x, 0) / ing.pieces.length,
+            cy: ing.pieces.reduce((sum, p) => sum + p.y, 0) / ing.pieces.length,
+            rx: 48, ry: 28, fill: 'rgba(255,255,255,0.12)'
+          }, g);
+          pieceEls[ing.id] = ing.pieces.map((p, i) => {
+            const piece = drawPiece(ing, p, i, g);
+            if (i >= state.amounts[ing.id]) piece.setAttribute('visibility', 'hidden');
+            return piece;
+          });
+          break;
         default:
           pieceEls[ing.id] = ing.pieces.map((p, i) => {
             const piece = drawPiece(ing, p, i, g);
@@ -437,6 +487,34 @@ export function createGame(meals: Meal[], startId?: string): Game {
     const share = state.amounts[ing.id] / ing.start;
     if (share > 0) {
       el('ellipse', { cx: c.x, cy: c.y + 6, rx: 12 + 26 * share, ry: 10 + 22 * share, fill: ing.color }, parent);
+      // anything mixed into this condiment shows as small swirls of its color
+      const rand = seeded(5);
+      state.steps.filter(st => st.target === ing.id && st.category === 'season').forEach(st => {
+        Object.keys(st.removed).forEach(id => {
+          const mixed = ingById(id);
+          if (!mixed) return;
+          el('circle', { cx: c.x + (rand() - 0.5) * 30 * share, cy: c.y + 6 + (rand() - 0.5) * 24 * share, r: 5, fill: mixed.color, opacity: 0.85 }, parent);
+        });
+      });
+    }
+    return [];
+  }
+
+  function drawSoup(ing: Ingredient, parent: SVGGElement): SVGGElement[] {
+    const c = ing.pieces[0];
+    el('circle', { cx: c.x, cy: c.y, r: 62, fill: '#2a1a14', stroke: '#140c09', 'stroke-width': 4 }, parent);
+    el('circle', { cx: c.x, cy: c.y, r: 52, fill: '#3b2a22' }, parent);
+    const share = state.amounts[ing.id] / ing.start;
+    if (share > 0) {
+      const r = 18 + 32 * share;
+      el('circle', { cx: c.x, cy: c.y, r, fill: ing.color }, parent);
+      // tofu cubes and seaweed float while there is enough soup
+      if (share > 0.3) {
+        [[-14, -10], [10, 6], [-2, 16]].forEach(([dx, dy]) => {
+          el('rect', { x: c.x + dx - 5, y: c.y + dy - 5, width: 10, height: 10, rx: 2, fill: '#fbf8f1' }, parent);
+        });
+        el('path', { d: 'M ' + (c.x + 6) + ' ' + (c.y - 18) + ' q 8 4 14 -2', stroke: '#2f5d32', 'stroke-width': 4, fill: 'none', 'stroke-linecap': 'round' }, parent);
+      }
     }
     return [];
   }
@@ -468,11 +546,13 @@ export function createGame(meals: Meal[], startId?: string): Game {
     if (state.spice.salt) badges.push('Salt ' + state.spice.salt);
     if (state.spice.pepper) badges.push('Pepper ' + state.spice.pepper);
     if (state.spice.chili) badges.push('Chili ' + state.spice.chili);
-    if (meal.scene === 'tray') {
+    if (meal.scene !== 'bowl') {
       meal.ingredients.forEach(ing => {
         const used = ing.start - state.amounts[ing.id];
         if (ing.kind === 'side' && used > 0) badges.push(ing.name + ' used ' + used);
       });
+      const orders = state.steps.filter(s => s.category === 'order').length;
+      if (orders) badges.push('Ordered more x' + orders);
     }
     const vessel = meal.vessel.charAt(0).toUpperCase() + meal.vessel.slice(1);
     if (foodLeft(meal, state) === 0) badges.push(vessel + ' empty');
@@ -818,6 +898,19 @@ export function createGame(meals: Meal[], startId?: string): Game {
         ], { duration: 700, delay: 150 + i * 30, easing: 'ease-in', fill: 'forwards' });
       }
       duration = 750;
+    }
+
+    if (action.anim === 'serve') {
+      // new pieces slide in from the kitchen side of the board
+      const ing = mustIng(action.target);
+      ing.pieces.forEach((p, i) => {
+        const ghost = el('circle', { cx: p.x, cy: p.y, r: 22, fill: ing.color, stroke: '#ffffff', 'stroke-width': 3, class: 'fx-item' }, fx);
+        ghost.animate([
+          { transform: 'translate(0px, -120px) scale(0.4)', opacity: 0 },
+          { transform: 'translate(0px, 0px) scale(1)', opacity: 1 }
+        ], { duration: 600, delay: i * 70, easing: 'ease-out', fill: 'forwards' });
+      });
+      duration = 650 + ing.pieces.length * 70;
     }
 
     if (action.anim === 'gulp') {
