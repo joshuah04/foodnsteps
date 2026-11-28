@@ -10,7 +10,8 @@ export type IngredientKind = 'food' | 'side';
 
 export type Shape =
   | 'broth' | 'noodle' | 'slice' | 'egg' | 'ring' | 'stick' | 'sheet' | 'cube' | 'shaker'
-  | 'burger' | 'fries' | 'drink' | 'cup' | 'pickle';
+  | 'burger' | 'fries' | 'drink' | 'cup' | 'pickle'
+  | 'nigiri' | 'maki' | 'roll' | 'soup' | 'mound' | 'radish';
 
 // one horizontal layer of a stacked food such as a burger, listed bottom to top
 export interface Layer {
@@ -30,13 +31,18 @@ export interface Ingredient {
   // for single object shapes (burger, drink, cup) the first point is the object's center
   pieces: Point[];
   layers?: Layer[];
+  // second color for details such as fish stripes or a maki filling
+  accent?: string;
+  // draws a nori band across a nigiri, as on eel nigiri
+  banded?: boolean;
 }
 
-export type ActionCategory = 'eat' | 'sip' | 'season' | 'prep';
+export type ActionCategory = 'eat' | 'sip' | 'season' | 'prep' | 'order';
 
-export type AnimKind = 'eat' | 'lift' | 'sip' | 'drink' | 'dip' | 'mix' | 'season' | 'stir' | 'bite' | 'topping' | 'gulp';
+export type AnimKind = 'eat' | 'lift' | 'sip' | 'drink' | 'dip' | 'mix' | 'season' | 'stir' | 'bite' | 'topping' | 'gulp' | 'serve';
 
-export type Effect = 'stir' | 'spice' | 'mixOnion';
+// refill puts the target back to its starting amount, as when ordering more sushi
+export type Effect = 'stir' | 'spice' | 'mixOnion' | 'refill';
 
 // amount of each ingredient, keyed by ingredient id
 export type Amounts = Record<string, number>;
@@ -57,10 +63,14 @@ export interface Action {
   effect?: Effect;
   requires?: Requirements;
   requiresText?: string;
+  // how many times this action can be used in one meal
+  limit?: number;
+  limitText?: string;
 }
 
 // bowl draws a ramen bowl seen from above, tray draws separate items side by side
-export type SceneKind = 'bowl' | 'tray';
+// board draws a slate serving board, like a sushi platter
+export type SceneKind = 'bowl' | 'tray' | 'board';
 
 export interface Meal {
   id: string;
@@ -109,6 +119,8 @@ export interface GameState {
 
 export interface Plan {
   removed: Amounts;
+  // portions put back, for example by ordering more
+  added?: Amounts;
   note: string;
 }
 

@@ -65,23 +65,54 @@ BURGER_PERSONAS = [
 ]
 
 
+# the sushi platter: eat, dip in soy sauce, or order more of each kind once it runs out
+SUSHI_KINDS = {"salmon": 3, "whitefish": 3, "shrimp": 3, "squid": 3, "tuna": 3, "eel": 3, "maki": 4, "eelroll": 6}
+SUSHI_MAX_REFILLS = 3
+SUSHI_ACTIONS = {
+    "sip_miso": ("miso", "sip", {"miso": 1}),
+    "mix_wasabi": ("soy", "season", {"wasabi": 1}),
+    "eat_radish": ("radish", "eat", {"radish": 1}),
+}
+for _kind in SUSHI_KINDS:
+    SUSHI_ACTIONS["eat_" + _kind] = (_kind, "eat", {_kind: 1})
+    SUSHI_ACTIONS["dip_" + _kind] = (_kind, "eat", {_kind: 1, "soy": 1})
+    SUSHI_ACTIONS["more_" + _kind] = (_kind, "order", {})
+SUSHI_START = {**SUSHI_KINDS, "miso": 5, "soy": 8, "wasabi": 3, "radish": 4}
+SUSHI_FOOD = [*SUSHI_KINDS, "miso"]
+SUSHI_PERSONAS = [
+    {"more_salmon": 4, "eat_salmon": 4, "dip_salmon": 3},
+    {"dip_tuna": 3, "dip_salmon": 3, "dip_eel": 3, "dip_maki": 3},
+    {"mix_wasabi": 3},
+    {"sip_miso": 4},
+    {"more_tuna": 3, "more_eelroll": 3},
+    {},
+]
+
+
 @dataclass
 class MealSim:
     actions: dict[str, tuple[str, str, dict[str, int]]]
     start: dict[str, int]
     food: list[str]
     personas: list[dict[str, float]]
+    # order actions refill their target to its starting amount, at most this many times each
+    max_refills: int = 0
 
 
 MEALS = {
     "ramen": MealSim(RAMEN_ACTIONS, RAMEN_START, RAMEN_FOOD, RAMEN_PERSONAS),
     "burger": MealSim(BURGER_ACTIONS, BURGER_START, BURGER_FOOD, BURGER_PERSONAS),
+    "sushi": MealSim(SUSHI_ACTIONS, SUSHI_START, SUSHI_FOOD, SUSHI_PERSONAS, SUSHI_MAX_REFILLS),
 }
 
 
-def allowed(meal: MealSim, action_id: str, amounts: dict[str, int]) -> bool:
-    _, _, consume = meal.actions[action_id]
+def allowed(meal: MealSim, action_id: str, amounts: dict[str, int], used: dict[str, int] | None = None) -> bool:
+    target, category, consume = meal.actions[action_id]
+    if category == "order":
+        return amounts[target] == 0 and (used or {}).get(action_id, 0) < meal.max_refills
     if any(amounts[k] <= 0 for k in consume):
+        return False
+    if action_id == "mix_wasabi" and amounts["soy"] <= 0:
         return False
     if action_id == "add_pickles" and amounts["burger"] <= 0:
         return False
@@ -97,6 +128,8 @@ def default_weight(meal: MealSim, action_id: str) -> float:
     _, category, consume = meal.actions[action_id]
     if category == "season":
         return 0.08
+    if category == "order":
+        return 0.3
     if not any(k in meal.food for k in consume):
         return 0.25
     return 1.0
@@ -109,11 +142,16 @@ def simulate(meal: MealSim, rng: random.Random) -> tuple[list[tuple[str, dict[st
     total = sum(meal.start[f] for f in meal.food)
     stop_at = rng.choice([0, 0, 0, total // 4, total * 5 // 8])
     steps = []
+    used: dict[str, int] = {}
     while sum(amounts[f] for f in meal.food) > stop_at and len(steps) < 80:
-        options = [a for a in meal.actions if allowed(meal, a, amounts)]
+        options = [a for a in meal.actions if allowed(meal, a, amounts, used)]
         weights = [persona.get(a, default_weight(meal, a)) for a in options]
         action_id = rng.choices(options, weights=weights)[0]
-        for k, n in meal.actions[action_id][2].items():
+        used[action_id] = used.get(action_id, 0) + 1
+        target, category, consume = meal.actions[action_id]
+        if category == "order":
+            amounts[target] = meal.start[target]
+        for k, n in consume.items():
             amounts[k] -= min(n, amounts[k])
         steps.append((action_id, dict(amounts)))
     return steps, amounts
@@ -123,6 +161,8 @@ def style_for(meal_id: str, actions: list[str], final: dict[str, int]) -> str:
     # a simplified version of the frontend style rules
     if meal_id == "burger":
         return burger_style_for(actions)
+    if meal_id == "sushi":
+        return sushi_style_for(actions)
     seasoned = sum(1 for a in actions if a.startswith("add_"))
     eats = [a for a in actions if RAMEN_ACTIONS[a][1] in ("eat", "sip")]
     noodle = sum(1 for a in actions if "noodles" in RAMEN_ACTIONS[a][2])
@@ -145,6 +185,18 @@ def burger_style_for(actions: list[str]) -> str:
         return "dipper"
     if actions and actions[0] == "drink_it":
         return "thirsty"
+    return "balanced"
+
+
+def sushi_style_for(actions: list[str]) -> str:
+    if sum(1 for a in actions if a.startswith("more_")) >= 2:
+        return "regular"
+    if actions.count("mix_wasabi") >= 2:
+        return "wasabi"
+    if actions and actions[0] == "sip_miso":
+        return "soup_first"
+    if all(any(a.endswith("_" + k) for a in actions if not a.startswith("more_")) for k in SUSHI_KINDS):
+        return "tour"
     return "balanced"
 
 

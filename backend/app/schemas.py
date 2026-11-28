@@ -15,7 +15,7 @@ class StepIn(CamelModel):
     action_id: str = Field(min_length=1, max_length=64)
     label: str = Field(max_length=128)
     target: str = Field(max_length=64)
-    category: Literal["eat", "sip", "season", "prep"]
+    category: Literal["eat", "sip", "season", "prep", "order"]
     t: int = Field(ge=0)
     removed: dict[str, int] = {}
     note: str = ""
